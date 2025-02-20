@@ -5,6 +5,10 @@ from app.session import snowflake_session
 from app.cortex_search_service import CortexSearchService
 from app.snowflake_answer_service import SnowflakeAnswerService
 
+from utils.utils import generate_step_descriptions
+
+import yaml
+
 
 def main():
     st.title("Demo Cortex Search Service")
@@ -32,7 +36,7 @@ def main():
                                             cortex_search_service=cortex_service)
 
     # Entrada de usuario para la consulta de búsqueda
-    query_input = st.text_input("Ingrese su búsqueda:", value="texto de búsqueda")
+    query_input = st.text_area("Ingrese su búsqueda:", value="texto de búsqueda", height=68*2)
 
     # Filtro opcional: en este ejemplo se deja vacío, pero podrías agregar controles para definirlo
     filter_input = {}
@@ -42,10 +46,19 @@ def main():
             rta = answer_service.generate_answer(query_input, filter_input, limit=5)
             st.write("Respuesta:")
             st.write(rta)
+            if rta:
+                try:
+                    steps = yaml.safe_load(rta)
+                    print("El YAML es válido:", steps)
+                except yaml.YAMLError as e:
+                    print("Error en el YAML:", e)
+
+            steps = generate_step_descriptions(steps)
+            for step in steps:
+                print(step)
 
         except Exception as e:
             st.error(f"Error al realizar la búsqueda: {e}")
-
 
 
 if __name__ == "__main__":
