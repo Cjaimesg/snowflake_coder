@@ -41,12 +41,12 @@ class SnowflakeAnswerService:
           "4. Code development: Provide detailed instructions for creating or modifying objects (tables, views, stored procedures, etc.).\n"
           "   - For stored procedures, do not include any parameters.\n"
           "5. Validation and testing: Specify how to test the step, including any unit tests or validation checks.\n"
-          "6. Optimization and documentation: Recommend performance best practices and include guidelines for documenting the code.\n\n"
           "Additionally, for each step, include a 'context' field that clearly states any prerequisite information, dependencies, or existing objects relevant to that step. This ensures that every instruction is provided with the full context required for its execution.\n\n"
           "The output must be strictly valid YAML without any additional text, commentary, or code outside the YAML structure.\n\n"
           "YAML Format to use:\n"
           "steps:\n"
           "  - step_name: <step_name>\n"
+          "    step_type: <sql_code or documentation>\n"
           "    long_step_description: <detailed description of the step, including objectives, configurations, prerequisites, testing, and documentation recommendations>\n"
           "    objective: <objective of the step>\n"
           "    context: <any prerequisite information or existing objects relevant to this step>\n"
@@ -93,8 +93,6 @@ class SnowflakeAnswerService:
         query = (
             f"SELECT SNOWFLAKE.CORTEX.COMPLETE('{self.model}', '{prompt}') AS response"
         )
-
-        print(query)
 
         # Ejecuta la consulta a través de la sesión de Snowflake
         result = self.session.sql(query).collect()[0]['RESPONSE']

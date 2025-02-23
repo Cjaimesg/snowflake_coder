@@ -5,7 +5,7 @@ from app.session import snowflake_session
 from app.cortex_search_service import CortexSearchService
 from app.snowflake_answer_service import SnowflakeAnswerService
 from app.snowflake_code_gen import SnowflakeCodeGenerator
-from utils.utils import generate_step_descriptions
+from utils.utils import generate_step_descriptions, get_step_type
 
 
 def init_services():
@@ -46,7 +46,7 @@ def process_query(query_input, answer_service, code_generator, execute_query):
     with st.spinner("Generando respuesta..."):
         rta = answer_service.generate_answer(query_input, filter_input, limit=5)
     st.subheader("Respuesta")
-    st.write(rta)
+    # st.markdown(rta)
 
     # Validar y parsear YAML
     try:
@@ -57,10 +57,17 @@ def process_query(query_input, answer_service, code_generator, execute_query):
         return
 
     code_generated_contex = 'Code previusly generated\n'
-    steps_descriptions = generate_step_descriptions(steps)
+    steps_descriptions, step_types = generate_step_descriptions(steps), get_step_type(steps)
 
-    for idx, step in enumerate(steps_descriptions, start=1):
-        st.markdown(f"**Paso {idx}:** {step}")
+    for step in steps_descriptions:
+        st.markdown(step)
+
+    for idx, (step, step_type) in enumerate(zip(steps_descriptions, step_types), start=1):
+
+        if step_type != "sql_code":
+            continue
+
+        st.code(f"**Paso {idx}:** {step} - Type: {step_type}")
         intentos = 0
         codigo_valido = False
         # Guardar el código generado en cada intento (para mostrarlo luego)
@@ -71,39 +78,34 @@ def process_query(query_input, answer_service, code_generator, execute_query):
         code_generated_in_step = ""
         while intentos < 3 and not codigo_valido:
             intentos += 1
+            st.markdown(f"**Paso {idx}:** {intentos}")
             with st.spinner(f"Generando código para el paso {idx} (intento {intentos})..."):
                 # Se le pasa tanto el step, el código previo exitoso y los errores anteriores (si los hay)
                 full_context = step + code_generated_contex + "\n" + code_generated_in_step + "\n" + error_context
-                st.code(full_context)
-                sql_codes_intento = code_generator.generate_code(full_context,
-                                                                 filter_input,
-                                                                 limit=5)
+                sql_codes_intento = code_generator.generate_code(full_context, filter_input, limit=5)
                 sql_codes_intento = code_generator.split_sql(sql_codes_intento)
 
-            # Mostrar el código generado para el intento actual
-            # st.code('\n;'.join(sql_codes_intento), language="sql")
-
-            # Intentar ejecutar cada consulta generada
             todas_ejecutadas = True
             error_mensajes = []  # Acumulamos errores para retroalimentación
+            error_context = ""
+            codigo_valido = True
 
             for sql_code in sql_codes_intento:
                 st.code(sql_code, language="sql")
                 result, success = code_generator.run_query(sql_code)
-                if success:
-                    pass
-                else:
-                    todas_ejecutadas = False
-                    error_mensajes.append(result)
 
-            if todas_ejecutadas:
-                # Si todas se ejecutaron bien, acumulamos el código y marcamos el paso como exitoso
+                if success:
+                    error_context += f"\nÉxito: {sql_code} \n{'*'*30}"
+                else:
+                    error_context += f"\nError: {sql_code} \n -> {result} \n{'*'*30}"
+                    error_mensajes.append(result)
+                    codigo_valido = False
+                    todas_ejecutadas = False
+
+            if codigo_valido:
                 code_generated_contex += '\n' + ';'.join(sql_codes_intento) + '\n'
-                codigo_valido = True
             else:
-                # Si hubo errores, se prepara un contexto de errores para el siguiente intento
                 code_generated_in_step = ';'.join(sql_codes_intento) + '\n'
-                error_context = f"Errores detectados en el intento {intentos}: " + " | ".join(error_mensajes) + "\n"
                 st.warning("Se intentará regenerar el código para corregir los errores.")
                 st.code(error_context)
 

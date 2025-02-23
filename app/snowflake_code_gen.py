@@ -33,7 +33,7 @@ class SnowflakeCodeGenerator:
 
         # Configura el prompt para que el modelo genere código SQL válido para Snowflake.
         prompt = (
-                "You are an expert engineer in Snowflake, with extensive experience in designing, implementing, and optimizing data solutions on Snowflake. "
+                "You are an expert engineer in Snowflake, with extensive experience in designing, implementing, and optimizing solutions on Snowflake. "
                 "You master SQL and Snowpark (Python) for creating stored procedures and always follow best practices in security, performance, and maintainability. "
                 "When errors occur in the code, you must analyze the error message and adjust the code to resolve them in the next iteration.\n\n"
                 "Additional Context:\n"
