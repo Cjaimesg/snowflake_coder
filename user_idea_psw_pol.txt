@@ -1,0 +1,8 @@
+Generate a PASSWORD POLICY in Snowflake with the following requirements:
+
+Minimum length of 12 characters.
+Must include at least one uppercase letter, one lowercase letter, one number, and one special character.
+The password must expire every 90 days.
+Users cannot reuse the last 5 passwords.
+Lock the account after 5 failed login attempts.
+Additionally, provide the SQL code required to create this policy and apply it to newly created users in Snowflake

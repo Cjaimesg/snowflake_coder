@@ -1,0 +1,5 @@
+I need a stored procedure for creating service users.
+
+Authentication should be done using username and password, and the password setup will be handled manually by a person on each platform.
+
+Provide me with a stored procedure implementing the best approach for this.

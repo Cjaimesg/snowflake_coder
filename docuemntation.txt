@@ -1,0 +1,83 @@
+-- Tabla usada por el servicio de search cortex 
+create or replace TABLE snowflake_coder.app.SNOWFLAKE_DOCUMENTATION (
+	CATEGORY VARCHAR(16777216) NOT NULL,
+	NAME VARCHAR(16777216) NOT NULL,
+	PART NUMBER(38,0),
+	DEFINITION VARCHAR(16777216),
+	UPDATED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP()
+);
+
+-- Vista para obtener la docuemntacion completa, y no por chunks 
+CREATE OR REPLACE VIEW snowflake_coder.app.full_document AS
+SELECT 
+    category,
+    name,
+    LISTAGG(definition, ' ') WITHIN GROUP (ORDER BY part) AS full_documentation,
+    MAX(updated_at) AS last_updated
+FROM snowflake_coder.app.snowflake_documentation
+GROUP BY category, name;
+
+-- Procedure para actualizar la docuemntacion
+CREATE OR REPLACE PROCEDURE snowflake_coder.app.split_text_and_store(
+    doc_string STRING,
+    category STRING,
+    name STRING
+)
+RETURNS STRING
+LANGUAGE PYTHON
+RUNTIME_VERSION = 3.9
+HANDLER = 'main'
+PACKAGES = ('snowflake-snowpark-python')
+AS $$
+import snowflake.snowpark as snowpark
+from snowflake.snowpark.functions import col, lit, flatten, current_timestamp
+
+def main(session: snowpark.Session, doc_string: str, category: str, name: str) -> str:
+
+    table_documentation = session.table('snowflake_coder.app.snowflake_documentation')
+    table_documentation.delete((col('category') == category) & (col('name') == name))
+    
+    chunk_transformation = session.sql(
+        '''
+            SELECT SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER (
+        ?,
+        'none',
+        1500,
+        200
+        ) AS definition
+        ''',
+        [doc_string]
+    )
+
+    chunk_transformation = chunk_transformation\
+        .select(flatten(col("definition"), recursive=True))\
+        .select("INDEX", "VALUE")\
+        .with_column_renamed(new='definition', existing='VALUE')\
+        .with_column_renamed(new='part', existing='INDEX')\
+        .with_column("category", lit(category))\
+        .with_column("name", lit(name))\
+        .with_column("updated_at", current_timestamp())
+
+    chunk_transformation.write.save_as_table("snowflake_coder.app.snowflake_documentation",
+                                             mode="append",
+                                             column_order="name")
+
+    return "Chunks stored in snowflake_coder.app.snowflake_documentation"
+$$;
+
+-- Creacion del servico de search cortex
+CREATE OR REPLACE CORTEX SEARCH SERVICE admin_snowflake_documentation_rag
+  ON definition
+  ATTRIBUTES category, name
+  WAREHOUSE = compute_wh
+  TARGET_LAG = '1 hour'
+  EMBEDDING_MODEL = 'snowflake-arctic-embed-l-v2.0'
+  COMMENT = 'Servicio Cortex Search para búsqueda en la docuementacion'
+AS (
+  SELECT
+    part, 
+    category,
+    name,
+    definition
+  FROM snowflake_coder.app.snowflake_documentation
+);
